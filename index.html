@@ -1,38 +1,190 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Bingo Deposit</title>
-  <meta charset="utf-8">
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-    body {
-      font-family: sans-serif;
-      text-align: center;
-      margin: 30px;
-    }
-    input, button {
-      font-size: 18px;
-      padding: 10px;
-      margin: 10px;
-      width: 80%;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Bingo Lobby</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@500;700&display=swap');
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    font-family: 'Montserrat', sans-serif;
+    margin: 0;
+    padding: 10px;
+    background: linear-gradient(135deg, #ffb347, #ffcc33);
+    color: #2d3436;
+    overflow-x: hidden;
+  }
+  h1 {
+    text-align: center;
+    font-size: 24px;
+    font-weight: 700;
+    margin-bottom: 16px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  #stakeLobby {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    max-height: 100vh;
+    overflow-y: auto;
+    padding: 0 10px;
+  }
+  .stake-card {
+    background: linear-gradient(145deg, #ffffff, #dfe6e9);
+    border-radius: 16px;
+    box-shadow: 5px 5px 15px #b2bec3, -5px -5px 15px #ffffff;
+    padding: 14px 16px;
+    width: 92%;
+    max-width: 330px;
+    margin: 0 auto;
+    text-align: center;
+    user-select: none;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    cursor: pointer;
+  }
+  .stake-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 8px 8px 20px #a3b1c6, -8px -8px 20px #ffffff;
+  }
+  .stake-amount {
+    font-size: 20px;
+    font-weight: 700;
+    color: #0984e3;
+    flex: 1 1 100px;
+  }
+  .players, .derash, .countdown {
+    margin: 0 4px;
+    font-size: 14px;
+    flex: 1 1 90px;
+    text-align: center;
+    font-weight: 600;
+  }
+  .play-btn {
+    background: #00b894;
+    background-image: linear-gradient(45deg, #00b894, #019875);
+    color: white;
+    border: none;
+    border-radius: 12px;
+    padding: 8px 14px;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    user-select: none;
+    flex: 0 0 100px;
+    margin-left: 6px;
+    box-shadow: 0 4px 12px rgba(0, 184, 148, 0.5);
+    transition: background 0.3s ease, box-shadow 0.3s ease;
+  }
+  .play-btn:hover:not(:disabled) {
+    background-image: linear-gradient(45deg, #019875, #00b894);
+    box-shadow: 0 6px 18px rgba(1, 152, 117, 0.8);
+  }
+  .play-btn:disabled {
+    background: gray;
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+  .active-label {
+    font-weight: 700;
+    color: #d63031;
+    animation: blink 1s steps(1) infinite;
+    font-size: 14px;
+    flex: 0 0 100px;
+    margin-left: 10px;
+    text-align: center;
+  }
+  @keyframes blink {
+    50% { opacity: 0; }
+  }
+</style>
 </head>
 <body>
-  <h2>Deposit to Bingo</h2>
-  <p>Pay via Telebirr manually, then enter the amount you paid:</p>
-  <input type="number" id="amount" placeholder="Amount in ETB">
-  <button onclick="sendDeposit()">I Paid</button>
 
-  <script>
-    const tg = window.Telegram.WebApp;
-    tg.expand();
+<h1>Bingo Stakes Lobby</h1>
+<div id="stakeLobby"></div>
 
-    function sendDeposit() {
-      const amount = document.getElementById("amount").value;
-      if (!amount) return alert("Enter an amount.");
-      tg.sendData(JSON.stringify({ amount: amount }));
-    }
-  </script>
+<script>
+  const stakes = [10, 20, 30, 40, 50];
+  const activePlayers = {10: 3, 20: 5, 30: 2, 40: 1, 50: 4};
+  const countdownInterval = 30;
+  const countdownTimes = {};
+  const countdownIntervals = {};
+  const stakeLobby = document.getElementById('stakeLobby');
+
+  function createStakeCard(stake) {
+    const card = document.createElement('div');
+    card.className = 'stake-card';
+    card.id = `stake-${stake}`;
+
+    const amount = document.createElement('div');
+    amount.className = 'stake-amount';
+    amount.textContent = `${stake} ETB`;
+
+    const players = document.createElement('div');
+    players.className = 'players';
+    players.textContent = `Active Players: ${activePlayers[stake] || 0}`;
+
+    // Countdown first, then derash
+    const countdown = document.createElement('div');
+    countdown.className = 'countdown';
+    countdown.id = `countdown-${stake}`;
+    countdown.textContent = 'Starting...';
+
+    const derash = document.createElement('div');
+    derash.className = 'derash';
+    const totalPot = (activePlayers[stake] || 0) * stake;
+    derash.textContent = `Derash: ${(totalPot * 0.95).toFixed(2)} ETB`;
+
+    const btn = document.createElement('button');
+    btn.className = 'play-btn';
+    btn.textContent = 'Play';
+    btn.disabled = true;
+    btn.onclick = e => {
+      e.stopPropagation();
+      alert(`Play clicked for stake: ${stake} ETB`);
+    };
+
+    card.append(amount, players, countdown, derash, btn);
+    stakeLobby.appendChild(card);
+  }
+
+  function startCountdown(stake) {
+    countdownTimes[stake] = countdownInterval;
+    const countdownEl = document.getElementById(`countdown-${stake}`);
+    const btn = document.querySelector(`#stake-${stake} .play-btn`);
+
+    btn.disabled = false;
+    countdownEl.textContent = `Starts in: ${countdownTimes[stake]}s`;
+
+    if(countdownIntervals[stake]) clearInterval(countdownIntervals[stake]);
+
+    countdownIntervals[stake] = setInterval(() => {
+      countdownTimes[stake]--;
+      if (countdownTimes[stake] <= 0) {
+        countdownEl.innerHTML = '<span class="active-label">Active Game</span>';
+        btn.disabled = true;
+        clearInterval(countdownIntervals[stake]);
+        setTimeout(() => startCountdown(stake), 5000);
+      } else {
+        countdownEl.textContent = `Starts in: ${countdownTimes[stake]}s`;
+      }
+    }, 1000);
+  }
+
+  function initLobby() {
+    stakes.forEach(stake => createStakeCard(stake));
+    stakes.forEach(stake => startCountdown(stake));
+  }
+
+  window.onload = initLobby;
+</script>
+
 </body>
 </html>
